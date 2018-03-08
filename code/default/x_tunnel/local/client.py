@@ -8,6 +8,8 @@ noarch_lib = os.path.abspath(os.path.join(python_path, 'lib', 'noarch'))
 sys.path.append(noarch_lib)
 
 root_path = os.path.abspath(os.path.join(current_path, os.pardir, os.pardir))
+sys.path.append(root_path)
+
 data_path = os.path.abspath(os.path.join(root_path, os.pardir, os.pardir, 'data'))
 data_xtunnel_path = os.path.join(data_path, 'x_tunnel')
 
@@ -73,7 +75,7 @@ def load_config():
 
     config.set_var("api_server", "center.xx-net.net")
     config.set_var("server_host", "")
-    config.set_var("server_port", 0)
+    config.set_var("server_port", 443)
     config.set_var("use_https", 1)
     config.set_var("port_range", 1)
 
@@ -90,7 +92,7 @@ def load_config():
     config.set_var("concurent_thread_num", 50)
 
     # min roundtrip on road if connectoin exist
-    config.set_var("min_on_road", 5)
+    config.set_var("min_on_road", 2)
 
     # range 1 - 1000, ms
     config.set_var("send_delay", 100)
@@ -111,6 +113,15 @@ def load_config():
 
     config.set_var("windows_size", 16 * 1024 * 1024)
 
+    # reporter
+    config.set_var("timeout_threshold", 2)
+
+    config.set_var("enable_gae_proxy", 1)
+    config.set_var("enable_cloudflare", 1)
+    config.set_var("enable_heroku", 1)
+    config.set_var("enable_tls_relay", 1)
+    config.set_var("enable_direct", 0)
+
     config.load()
 
     config.windows_ack = 0.05 * config.windows_size
@@ -124,10 +135,20 @@ def load_config():
     g.config = config
 
 
-def start():
+def main(args):
+    global ready
+
+    g.xxnet_version = xxnet_version
+
+    load_config()
+    front_dispatcher.init()
+    g.data_path = data_path
+
+    xlog.info("xxnet_version:%s", g.xxnet_version)
+
     g.running = True
     if not g.server_host or not g.server_port:
-        if g.config.server_host and g.config.server_port:
+        if g.config.server_host and g.config.server_port == 443:
             xlog.info("Session Server:%s:%d", g.config.server_host, g.config.server_port)
             g.server_host = g.config.server_host
             g.server_port = g.config.server_port
@@ -140,6 +161,18 @@ def start():
     g.http_client = front_dispatcher
 
     g.session = proxy_session.ProxySession()
+
+    allow_remote = args.get("allow_remote", 0)
+    if allow_remote:
+        listen_ip = "0.0.0.0"
+    else:
+        listen_ip = g.config.socks_host
+
+    g.socks5_server = simple_http_server.HTTPServer((listen_ip, g.config.socks_port), Socks5Server, logger=xlog)
+    xlog.info("Socks5 server listen:%s:%d.", g.config.socks_host, g.config.socks_port)
+
+    ready = True
+    g.socks5_server.serve_forever()
 
 
 def terminate():
@@ -158,28 +191,6 @@ def terminate():
         g.session.stop()
         g.session = None
     ready = False
-
-
-def main(args):
-    global ready
-    load_config()
-    g.data_path = data_path
-
-    xlog.info("xxnet_version:%s", xxnet_version())
-
-    start()
-
-    allow_remote = args.get("allow_remote", 0)
-    if allow_remote:
-        listen_ip = "0.0.0.0"
-    else:
-        listen_ip = g.config.socks_host
-
-    g.socks5_server = simple_http_server.HTTPServer((listen_ip, g.config.socks_port), Socks5Server, logger=xlog)
-    xlog.info("Socks5 server listen:%s:%d.", g.config.socks_host, g.config.socks_port)
-
-    ready = True
-    g.socks5_server.serve_forever()
 
 
 if __name__ == '__main__':

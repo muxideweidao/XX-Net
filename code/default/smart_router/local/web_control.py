@@ -4,14 +4,12 @@
 import urlparse
 import os
 import cgi
-import time
-import hashlib
 
 from xlog import getLogger
-import threading
 xlog = getLogger("smart_router")
 
 import simple_http_server
+import pac_server
 import global_var as g
 
 current_path = os.path.dirname(os.path.abspath(__file__))
@@ -32,9 +30,8 @@ class ControlHandler(simple_http_server.HttpServerHandler):
         path = urlparse.urlparse(self.path).path
         if path == "/log":
             return self.req_log_handler()
-        elif path == "/debug":
-            data = ""
-            return self.send_response('text/html', data)
+        elif path == "/status":
+            return self.req_status()
         else:
             xlog.warn('Control Req %s %s %s ', self.address_string(), self.command, self.path)
 
@@ -114,18 +111,28 @@ class ControlHandler(simple_http_server.HttpServerHandler):
 
         if cmd == "get":
             data = {
+                "pac_policy": g.config.pac_policy,
                 "country": g.config.country_code,
                 "auto_direct":g.config.auto_direct,
-                "auto_gae": g.config.auto_gae
+                "auto_gae": g.config.auto_gae,
+                "block_advertisement": g.config.block_advertisement
             }
             return self.response_json(data)
         elif cmd == "set":
+            if "pac_policy" in reqs:
+                pac_policy = reqs["pac_policy"][0]
+                if pac_policy not in pac_server.allow_policy:
+                    return self.response_json({"res": "fail", "reason": "policy not allow"})
+
+                g.config.pac_policy = pac_policy
             if "country" in reqs:
                 g.config.country_code = reqs["country"][0]
             if "auto_direct" in reqs:
                 g.config.auto_direct = bool(int(reqs["auto_direct"][0]))
             if "auto_gae" in reqs:
                 g.config.auto_gae = bool(int(reqs["auto_gae"][0]))
+            if "block_advertisement" in reqs:
+                g.config.block_advertisement = bool(int(reqs["block_advertisement"][0]))
             g.config.save()
             return self.response_json({"res": "success"})
 
@@ -137,8 +144,8 @@ class ControlHandler(simple_http_server.HttpServerHandler):
             cmd = "get"
 
         if cmd == "get":
-            g.domain_cache.save()
-            g.ip_cache.save()
+            g.domain_cache.save(True)
+            g.ip_cache.save(True)
             data = {
                 "domain_cache_list": g.domain_cache.get_content(),
                 "ip_cache_list": g.ip_cache.get_content(),
@@ -149,3 +156,8 @@ class ControlHandler(simple_http_server.HttpServerHandler):
             g.domain_cache.clean()
             g.ip_cache.clean()
             return self.response_json({"res": "success"})
+
+    def req_status(self):
+        out_str = "pipe status:\n" + str(g.pipe_socks)
+        self.send_response("text/plain", out_str)
+

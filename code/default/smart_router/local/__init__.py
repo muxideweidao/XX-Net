@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import apis
 
 from xlog import getLogger
@@ -30,11 +29,12 @@ from . import global_var as g
 import dns_server
 import host_records
 import user_rules
-import proxy_handler
+from . import proxy_handler
 import web_control
 import connect_manager
 import pac_server
 import pipe_socks
+import ip_region
 import gfwlist
 
 ready = False
@@ -57,18 +57,22 @@ def load_config():
 
     config.set_var("dns_bind_ip", "127.0.0.1")
     config.set_var("dns_port", 53)
+    config.set_var("dns_backup_port", 8053)
 
     config.set_var("proxy_bind_ip", "127.0.0.1")
     config.set_var("proxy_port", 8086)
 
     config.set_var("dns_cache_size", 200)
+    config.set_var("pip_cache_size", 32*1024)
     config.set_var("ip_cache_size", 1000)
     config.set_var("dns_ttl", 24*3600)
     config.set_var("direct_split_SNI", 1)
 
+    config.set_var("pac_policy", "black_GAE")
     config.set_var("country_code", "CN")
     config.set_var("auto_direct", True)
     config.set_var("auto_gae", True)
+    config.set_var("block_advertisement", True)
 
     config.load()
     if config.PROXY_ENABLE:
@@ -96,6 +100,7 @@ def run(args):
 
     load_config()
     g.gfwlist = gfwlist.GfwList()
+    g.ip_region = ip_region.IpRegion()
 
     g.domain_cache = host_records.DomainRecords(os.path.join(data_path, "domain_records.txt"),
                                                 capacity=g.config.dns_cache_size, ttl=g.config.dns_ttl)
@@ -106,8 +111,9 @@ def run(args):
 
     connect_manager.load_proxy_config()
     g.connect_manager = connect_manager.ConnectManager()
-    g.pipe_socks = pipe_socks.PipeSocks()
+    g.pipe_socks = pipe_socks.PipeSocks(g.config.pip_cache_size)
     g.pipe_socks.run()
+    g.dns_client = dns_server.DnsClient()
 
     allow_remote = args.get("allow_remote", 0)
     if allow_remote:
@@ -117,15 +123,17 @@ def run(args):
     g.proxy_server = simple_http_server.HTTPServer((listen_ip, g.config.proxy_port),
                                                    proxy_handler.ProxyServer, logger=xlog)
     g.proxy_server.start()
-    xlog.info("Proxy server listen:%s:%d.", g.config.proxy_bind_ip, g.config.proxy_port)
+    xlog.info("Proxy server listen:%s:%d.", listen_ip, g.config.proxy_port)
 
     allow_remote = args.get("allow_remote", 0)
     if allow_remote:
         listen_ip = "0.0.0.0"
     else:
         listen_ip = g.config.dns_bind_ip
-    g.dns_srv = dns_server.DnsServer(bind_ip=listen_ip, port=g.config.dns_port,
-                                   ttl=g.config.dns_ttl)
+    g.dns_srv = dns_server.DnsServer(
+        bind_ip=listen_ip, port=g.config.dns_port,
+        backup_port=g.config.dns_backup_port,
+        ttl=g.config.dns_ttl)
     ready = True
     g.dns_srv.server_forever()
 
@@ -133,11 +141,12 @@ def run(args):
 def terminate():
     global ready
 
-    g.domain_cache.save()
-    g.ip_cache.save()
+    g.domain_cache.save(True)
+    g.ip_cache.save(True)
 
     g.connect_manager.stop()
     g.pipe_socks.stop()
+    g.dns_client.stop()
 
     g.dns_srv.stop()
     g.proxy_server.shutdown()

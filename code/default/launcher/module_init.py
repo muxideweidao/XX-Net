@@ -8,14 +8,13 @@ from xlog import getLogger
 xlog = getLogger("launcher")
 import web_control
 import time
-proc_handler = {}
 
+proc_handler = {}
 
 xargs = {}
 
-
 current_path = os.path.dirname(os.path.abspath(__file__))
-root_path = os.path.abspath( os.path.join(current_path, os.pardir))
+root_path = os.path.abspath(os.path.join(current_path, os.pardir))
 if root_path not in sys.path:
     sys.path.append(root_path)
 
@@ -27,7 +26,7 @@ def start(module):
     try:
         if module not in config.config["modules"]:
             xlog.error("module not exist %s", module)
-            raise
+            raise Exception()
 
         if module in proc_handler:
             xlog.error("module %s is running", module)

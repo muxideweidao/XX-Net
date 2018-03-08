@@ -46,24 +46,32 @@ class DomainRecords(object):
         self.running = True
 
     def get(self, domain):
-        record = None
-        try:
-            record = self.cache.pop(domain)
+        with self.lock:
+            try:
+                record = self.cache.pop(domain)
+
+                time_now = time.time()
+                if time_now - record["update"] > self.ttl:
+                   record = None
+            except KeyError:
+                record = None
+
+            if not record:
+                record = {"r": "unknown", "ip": {}, "g": 1, "query_count": 0}
             self.cache[domain] = record
-        except KeyError:
-            pass
-        return record
+            return record
 
     def set(self, domain, record):
-        try:
-            self.cache.pop(domain)
-        except KeyError:
-            if len(self.cache) >= self.capacity:
-                self.cache.popitem(last=False)
+        with self.lock:
+            try:
+                self.cache.pop(domain)
+            except KeyError:
+                if len(self.cache) >= self.capacity:
+                    self.cache.popitem(last=False)
 
-        self.cache[domain] = record
-        self.need_save = True
-        self.last_update_time = time.time()
+            self.cache[domain] = record
+            self.need_save = True
+            self.last_update_time = time.time()
 
     def clean(self):
         with self.lock:
@@ -99,39 +107,40 @@ class DomainRecords(object):
         if not os.path.isfile(self.file_path):
             return
 
-        with open(self.file_path, "r") as fd:
-            for line in fd.readlines():
-                if not line:
-                    continue
-
-                try:
-                    lp = line.split()
-                    if len(lp) == 3:
-                        domain = lp[0]
-                        rule = lp[1]
-                        gae_acceptable = int(lp[2])
-                        record = {"r": rule, "ip": {}, "g":gae_acceptable}
-                    elif len(lp) == 5:
-                        domain = lp[0]
-                        rule = lp[1]
-                        gae_acceptable = int(lp[2])
-                        ips = lp[3].split(",")
-                        update_time = int(lp[4])
-                        record = {"r": rule, "ip":{}, "update": update_time, "g":gae_acceptable}
-                        for ipd in ips:
-                            ipl = ipd.split("|")
-                            ip = ipl[0]
-                            cn = ipl[1]
-
-                            record["ip"][ip] = cn
-                    else:
-                        xlog.warn("rule line:%s fail", line)
+        with self.lock:
+            with open(self.file_path, "r") as fd:
+                for line in fd.readlines():
+                    if not line:
                         continue
-                except Exception as e:
-                    xlog.warn("rule line:%s fail:%r", line, e)
-                    continue
 
-                self.cache[domain] = record
+                    try:
+                        lp = line.split()
+                        if len(lp) == 3:
+                            domain = lp[0]
+                            rule = lp[1]
+                            gae_acceptable = int(lp[2])
+                            record = {"r": rule, "ip": {}, "g":gae_acceptable}
+                        elif len(lp) == 5:
+                            domain = lp[0]
+                            rule = lp[1]
+                            gae_acceptable = int(lp[2])
+                            ips = lp[3].split(",")
+                            update_time = int(lp[4])
+                            record = {"r": rule, "ip":{}, "update": update_time, "g":gae_acceptable}
+                            for ipd in ips:
+                                ipl = ipd.split("|")
+                                ip = ipl[0]
+                                cn = ipl[1]
+
+                                record["ip"][ip] = cn
+                        else:
+                            xlog.warn("rule line:%s fail", line)
+                            continue
+                    except Exception as e:
+                        xlog.warn("rule line:%s fail:%r", line, e)
+                        continue
+
+                    self.cache[domain] = record
 
     def save(self, force=False):
         time_now = time.time()
@@ -160,13 +169,9 @@ class DomainRecords(object):
         self.last_save_time = time.time()
         self.need_save = False
 
-    def get_ips(self, domain, type):
+    def get_ips(self, domain, type=None):
         record = self.get(domain)
-        if not record:
-            return []
-
-        time_now = time.time()
-        if len(record["ip"]) == 0 or time_now - record["update"] > self.ttl:
+        if len(record["ip"]) == 0:
             return []
 
         ips = []
@@ -180,13 +185,9 @@ class DomainRecords(object):
 
         return ips
 
-    def get_ordered_ips(self, domain, type):
+    def get_ordered_ips(self, domain, type=None):
         record = self.get(domain)
-        if not record:
-            return []
-
-        time_now = time.time()
-        if len(record["ip"]) == 0 or time_now - record["update"] > self.ttl:
+        if len(record["ip"]) == 0:
             return []
 
         ip_rate = {}
@@ -201,15 +202,17 @@ class DomainRecords(object):
             return []
 
         ip_time = sorted(ip_rate.items(), key=operator.itemgetter(1))
-        ordered_ips = [ip for ip, rate in ip_time]
+
+        ordered_ips = []
+        for ip, rate in ip_time:
+            cn = record["ip"][ip]
+            s = "%s|%s" % (ip, cn)
+            ordered_ips.append(s)
 
         return ordered_ips
 
-    def set_ips(self, domain, ips, type, rule="direct"):
+    def set_ips(self, domain, ips, type=None, rule="direct"):
         record = self.get(domain)
-        if not record:
-            record = {"r": rule, "ip":{}, "g": 1}
-
         if rule != "direct":
             record["r"] = rule
 
@@ -225,26 +228,26 @@ class DomainRecords(object):
 
     def update_rule(self, domain, port, rule):
         record = self.get(domain)
-        if not record:
-            record = {"r": rule, "ip": {}, "g": 1}
-        else:
-            record["r"] = rule
+        record["r"] = rule
         return self.set(domain, record)
 
     def report_gae_deny(self, domain, port=None):
         record = self.get(domain)
-        if not record:
-            record = {"r": "direct", "ip": {}, "g": 0}
-        else:
-            record["g"] = 0
+        record["g"] = 0
         return self.set(domain, record)
 
     def accept_gae(self, domain, port=None):
         record = self.get(domain)
-        if not record:
-            return True
-        else:
-            return record["g"]
+        return record["g"]
+
+    def get_query_count(self, domain):
+        record = self.get(domain)
+        return record["query_count"]
+
+    def add_query_count(self, domain):
+        record = self.get(domain)
+        record["query_count"] += 1
+        self.set(domain, record)
 
 
 class IpRecord(object):
@@ -278,24 +281,26 @@ class IpRecord(object):
         self.running = True
 
     def get(self, ip):
-        record = None
-        try:
-            record = self.cache.pop(ip)
-            self.cache[ip] = record
-        except KeyError:
-            pass
-        return record
+        with self.lock:
+            record = None
+            try:
+                record = self.cache.pop(ip)
+                self.cache[ip] = record
+            except KeyError:
+                pass
+            return record
 
     def set(self, ip, record):
-        try:
-            self.cache.pop(ip)
-        except KeyError:
-            if len(self.cache) >= self.capacity:
-                self.cache.popitem(last=False)
+        with self.lock:
+            try:
+                self.cache.pop(ip)
+            except KeyError:
+                if len(self.cache) >= self.capacity:
+                    self.cache.popitem(last=False)
 
-        self.cache[ip] = record
-        self.need_save = True
-        self.last_update_time = time.time()
+            self.cache[ip] = record
+            self.need_save = True
+            self.last_update_time = time.time()
 
     def clean(self):
         with self.lock:
@@ -311,21 +316,22 @@ class IpRecord(object):
         if not os.path.isfile(self.file_path):
             return
 
-        with open(self.file_path, "r") as fd:
-            for line in fd.readlines():
-                if not line:
-                    continue
+        with self.lock:
+            with open(self.file_path, "r") as fd:
+                for line in fd.readlines():
+                    if not line:
+                        continue
 
-                lp = line.split()
-                if len(lp) != 4:
-                    xlog.warn("rule line:%s fail", line)
-                    continue
+                    lp = line.split()
+                    if len(lp) != 4:
+                        xlog.warn("rule line:%s fail", line)
+                        continue
 
-                ip = lp[0]
-                rule = lp[1]
-                connect_time = int(lp[2])
-                update_time = int(lp[3])
-                self.cache[ip] = {"r": rule, "c": connect_time, "update": update_time}
+                    ip = lp[0]
+                    rule = lp[1]
+                    connect_time = int(lp[2])
+                    update_time = int(lp[3])
+                    self.cache[ip] = {"r": rule, "c": connect_time, "update": update_time}
 
     def save(self, force=False):
         if not force:

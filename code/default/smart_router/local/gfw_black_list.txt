@@ -278,6 +278,7 @@ aolchannels.aol.com
 aolnews.com
 aomiwang.com
 apetube.com
+app-measurement.com
 api-secure.recaptcha.net
 api-verify.recaptcha.net
 api.ai
@@ -513,7 +514,7 @@ blog.cnyes.com
 blog.daum.net
 blog.de
 blog.exblog.co.jp
-blog.excite.co.j
+blog.excite.co.jp
 blog.expofutures.com
 blog.fizzik.com
 blog.foolsmountain.com
@@ -522,7 +523,6 @@ blog.goo.ne.jp
 blog.google
 blog.inoreader.com
 blog.istef.info
-blog.j
 blog.jackjia.com
 blog.jp
 blog.kangye.org
@@ -951,6 +951,7 @@ compress.to
 connect.facebook.net
 conoha.jp
 contactmagazine.net
+contentabc.com
 contests.twilio.com
 convio.net
 coobay.com
@@ -1817,7 +1818,6 @@ goodreads.com
 goodtv.com.tw
 goodtv.tv
 goofind.com
-google.*
 google.ae
 google.am
 google.as
@@ -1872,6 +1872,7 @@ google.to
 google.tt
 google.vu
 google.ws
+googleads.g.doubleclick.net
 googleapis.cn
 googleapis.com
 googleapps.com
@@ -1898,6 +1899,7 @@ googleplus.com
 googlescholar.com
 googlesile.com
 googlesource.com
+googletagservices.com
 googleusercontent.com
 googlevideo.com
 googleweblight.com
@@ -3150,6 +3152,7 @@ npa.go.jp
 npa.gov.tw
 npnt.me
 nps.gov
+nr-data.net
 nradio.me
 nrk.no
 ns01.biz
@@ -3874,6 +3877,7 @@ sitemaps.org
 sixth.biz
 sjrt.org
 sjum.cn
+skeettools.com
 sketchappsources.com
 skimtube.com
 skybet.com
@@ -4364,6 +4368,7 @@ tparents.org
 tpi.org.tw
 tracfone.com
 traffichaus.com
+trafficjunky.net
 transparency.org
 treemall.com.tw
 trendsmap.com
@@ -4704,6 +4709,7 @@ videopediaworld.com
 videopress.com
 vidinfo.org
 vietdaikynguyen.com
+viidii.info
 vijayatemple.org
 vimeo.com
 vimperator.org
@@ -4893,6 +4899,7 @@ whoer.net
 whotalking.com
 whylover.com
 whyx.org
+wi.to
 widevine.com
 wiends.com
 wifan.com

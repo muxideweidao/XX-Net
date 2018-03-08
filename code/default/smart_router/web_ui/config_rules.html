@@ -10,7 +10,7 @@
 
     <div class="row-fluid">
         <div class="span2">
-            <label for="gae-list">{{ _( "GAE List" ) }}</label>
+            <label for="gae-list">{{ _( "GAEProxy List" ) }}</label>
         </div> <!-- .span2 -->
         <div class="span10">
             <textarea id="gae-list" rows="10"></textarea>
@@ -19,7 +19,7 @@
 
     <div class="row-fluid">
         <div class="span2">
-            <label for="socks-list">{{ _( "Socks List" ) }}</label>
+            <label for="socks-list">{{ _( "SOCKS List" ) }}</label>
         </div> <!-- .span2 -->
         <div class="span10">
             <textarea id="socks-list" rows="10"></textarea>
@@ -58,8 +58,8 @@
         url: '/module/smart_router/control/rules',
         data: {},
         dataType: 'JSON',
-        success: function(result) {
-            if ( result['res'] == 'success' ) {
+        success: function (result) {
+            if (result['res'] == 'success') {
                 {
                     $('#direct-list').val(result['direct']);
                     $('#gae-list').val(result['gae']);
@@ -67,12 +67,11 @@
                     $('#black-list').val(result['black']);
                     $('#redirect-https-list').val(result['redirect_https']);
                 }
-
             } else {
                 displayErrorMessage();
             }
         },
-        error: function() {
+        error: function () {
             displayErrorMessage();
         }
     });
@@ -92,13 +91,12 @@
             url: '/module/smart_router/control/rules',
             data: postData,
             dataType: 'JSON',
-            success: function(result) {
+            success: function (result) {
                 tip('{{ _( "Settings saved successfully." ) }}', 'success');
             },
-            error: function() {
+            error: function () {
                 displayErrorMessage();
             }
         });
     }
 </script>
-

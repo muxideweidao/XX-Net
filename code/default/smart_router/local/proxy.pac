@@ -3,14 +3,25 @@
  * GFWList From: online[https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt]
  */
 
-var proxy = 'PROXY PROXY_LISTEN';
-var block_list = [
+var black_list = [
     "BLACK_LIST"
 ];
 
+var white_list = [
+    "WHITE_LIST"
+];
 
+var proxy = 'PROXY PROXY_LISTEN';
 function FindProxyForURL(url, host) {
-    for (var i = 0; i < block_list.length; i++) {
+
+    for (var i = 0; i < white_list.length; i++) {
+        var host_end = white_list[i];
+        if (host == host_end || host.endsWith('.' + host_end)) {
+            return 'DIRECT';
+        }
+    }
+
+    for (var i = 0; i < black_list.length; i++) {
         var host_end = black_list[i];
         if (host == host_end || host.endsWith('.' + host_end)) {
             return proxy;
@@ -30,5 +41,5 @@ if (!String.prototype.endsWith) {
         position -= searchString.length;
         var lastIndex = subjectString.indexOf(searchString, position);
         return lastIndex !== -1 && lastIndex === position;
-  };
+    };
 }
